@@ -176,7 +176,7 @@ Keep your agent up-to-date with the latest improvements from Nous Research:
 ## 🔍 Troubleshooting & FAQ
 
 <details>
-<summary><strong>🚫 First-run setup fails or times out</strong></summary>
+<summary><strong> First-run setup fails or times out</strong></summary>
 
 *   Verify your internet connection (the setup downloads ~600 MB of data).
 *   Some corporate/school firewall settings block Node.js CDNs or GitHub releases. Try configuring a VPN.
@@ -184,7 +184,7 @@ Keep your agent up-to-date with the latest improvements from Nous Research:
 </details>
 
 <details>
-<summary><strong>🍏 macOS: "cannot be opened because the developer cannot be verified"</strong></summary>
+<summary><strong> macOS: "cannot be opened because the developer cannot be verified"</strong></summary>
 
 *   Right-click `launch.sh` (or `launch.command`), choose **Open With** and select **Terminal**.
 *   Alternatively, open terminal and strip macOS quarantine flags using:
@@ -194,7 +194,7 @@ Keep your agent up-to-date with the latest improvements from Nous Research:
 </details>
 
 <details>
-<summary><strong>🛡️ Windows Defender flags the launcher scripts</strong></summary>
+<summary><strong> Windows Defender flags the launcher scripts</strong></summary>
 
 *   This is a false positive caused by PowerShell scripts downloading files from remote sources (GitHub & Node.js servers).
 *   Click **"More info"** on the Windows SmartScreen dialog, then click **"Run anyway"**.
@@ -202,14 +202,14 @@ Keep your agent up-to-date with the latest improvements from Nous Research:
 </details>
 
 <details>
-<summary><strong>🐢 Hermes is running slowly from my flash drive</strong></summary>
+<summary><strong> Hermes is running slowly from my flash drive</strong></summary>
 
 *   Older USB 2.0 drives have slow read/write speeds, which bottleneck Python's modules import.
 *   **Solution**: Upgrade to a **USB 3.0 / 3.1** drive, or an **external SSD** for optimal performance.
 </details>
 
 <details>
-<summary><strong>🌐 Playwright / Web Browser tools are failing</strong></summary>
+<summary><strong> Playwright / Web Browser tools are failing</strong></summary>
 
 *   Some OS sandboxing policies restrict web browsers (Chromium/Firefox) from starting directly inside external/removable directories.
 *   **Solution**: Copy the `hermes-portable` directory onto the local SSD and run from there.
