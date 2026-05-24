@@ -252,6 +252,7 @@ Write-Done "Virtual environment ready"
 # ---------------------------------------------------------------------------
 # 8. Install Hermes dependencies
 # ---------------------------------------------------------------------------
+$ErrorActionPreference = "Continue"
 Write-Step "Installing Hermes Python dependencies ..."
 Write-Host "        This may take 3-10 minutes depending on your connection."
 $venvPython = Join-Path $venvDir "Scripts\python.exe"
@@ -259,7 +260,7 @@ $venvPython = Join-Path $venvDir "Scripts\python.exe"
 # Try uv first (faster), fall back to pip on unsupported filesystem (e.g. ExFAT)
 $uvResult = & $uvExe pip install --python $venvPython --link-mode=copy -e "$destSrc[all]" 2>&1
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "        uv install failed — falling back to pip ..."
+    Write-Host "        uv install failed - falling back to pip ..."
     & $venvPython -m ensurepip --upgrade | Out-Null
     & $venvPython -m pip install -e "$destSrc[all]"
     if ($LASTEXITCODE -ne 0) { throw "Failed to install Hermes dependencies" }
