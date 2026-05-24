@@ -105,9 +105,14 @@ if [ ! -x "$VIRTUAL_ENV/bin/python" ]; then
     if ! "$UV_EXE" venv "$VIRTUAL_ENV" --python "$PYTHON_EXE" --seed 2>/dev/null; then
         "$UV_EXE" venv "$VIRTUAL_ENV" --python "$PYTHON_EXE"
     fi
-    "$UV_EXE" pip install --python "$VIRTUAL_ENV/bin/python" --link-mode=copy \
+    if ! "$UV_EXE" pip install --python "$VIRTUAL_ENV/bin/python" --link-mode=copy \
         -e "$SRC_DIR/hermes-agent[all]" \
-        "python-telegram-bot[webhooks]==22.6" 2>/dev/null || true
+        "python-telegram-bot[webhooks]==22.6" 2>/dev/null; then
+        "$VIRTUAL_ENV/bin/python" -m ensurepip --upgrade >/dev/null 2>&1 || true
+        "$VIRTUAL_ENV/bin/python" -m pip install \
+            -e "$SRC_DIR/hermes-agent[all]" \
+            "python-telegram-bot[webhooks]==22.6" 2>/dev/null || true
+    fi
     echo "[OK]    Venv rebuilt."
 fi
 

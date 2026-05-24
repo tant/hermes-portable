@@ -334,10 +334,16 @@ step "Installing Hermes Python dependencies ..."
 echo "        This may take 3-10 minutes depending on your connection."
 VENV_PYTHON="$VENV_DIR/bin/python"
 
-# Bug fix: bare $? check doesn't work under set -e; use if ! pattern instead
-if ! "$UV_EXE" pip install --python "$VENV_PYTHON" --link-mode=copy -e "$SRC_DIR/hermes-agent[all]"; then
-    echo "[ERROR] Failed to install Hermes dependencies"
-    exit 1
+# Try uv first (faster), fall back to pip on unsupported filesystem (e.g. ExFAT)
+if ! "$UV_EXE" pip install --python "$VENV_PYTHON" --link-mode=copy -e "$SRC_DIR/hermes-agent[all]" 2>/dev/null; then
+    echo "        uv install failed — falling back to pip ..."
+    if ! "$VENV_PYTHON" -m ensurepip --upgrade >/dev/null 2>&1; then
+        echo "[WARN] Could not install pip in virtual environment"
+    fi
+    if ! "$VENV_PYTHON" -m pip install -e "$SRC_DIR/hermes-agent[all]"; then
+        echo "[ERROR] Failed to install Hermes dependencies"
+        exit 1
+    fi
 fi
 done_msg "Dependencies installed"
 
@@ -350,10 +356,14 @@ done_msg "Dependencies installed"
 # so Telegram works out of the box.
 # ---------------------------------------------------------------------------
 step "Installing messaging dependencies (Telegram) ..."
-if "$UV_EXE" pip install --python "$VENV_PYTHON" --link-mode=copy "python-telegram-bot[webhooks]==22.6"; then
-    done_msg "python-telegram-bot ready"
+if ! "$UV_EXE" pip install --python "$VENV_PYTHON" --link-mode=copy "python-telegram-bot[webhooks]==22.6" 2>/dev/null; then
+    if ! "$VENV_PYTHON" -m pip install "python-telegram-bot[webhooks]==22.6" 2>/dev/null; then
+        warn "python-telegram-bot install failed - will retry on first use"
+    else
+        done_msg "python-telegram-bot ready"
+    fi
 else
-    warn "python-telegram-bot install failed - will retry on first use"
+    done_msg "python-telegram-bot ready"
 fi
 
 # ---------------------------------------------------------------------------
