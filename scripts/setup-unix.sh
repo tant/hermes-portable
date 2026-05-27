@@ -420,7 +420,25 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 11. Mark ready
+# 11. Seed a free default model (only on a fresh install)
+# ---------------------------------------------------------------------------
+# So the agent works out of the box without the interactive wizard, point it at
+# the one currently-free Nous model. Skipped if a config already exists, so a
+# user's own choices are never overwritten. owl-alpha is a free preview and may
+# change upstream; users can re-select any model via the launcher menu.
+if [ ! -f "$PORTABLE_ROOT/data/config.yaml" ]; then
+    step "Seeding free default model ..."
+    mkdir -p "$PORTABLE_ROOT/data"
+    HERMES_BIN="$VENV_DIR/bin/hermes"
+    if [ -x "$HERMES_BIN" ]; then
+        HERMES_HOME="$PORTABLE_ROOT/data" "$HERMES_BIN" config set model.provider nous >/dev/null 2>&1 || true
+        HERMES_HOME="$PORTABLE_ROOT/data" "$HERMES_BIN" config set model.default openrouter/owl-alpha >/dev/null 2>&1 || true
+        done_msg "Default model set to openrouter/owl-alpha (free)"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# 12. Mark ready
 # ---------------------------------------------------------------------------
 touch "$RUNTIME_DIR/ready.flag"
 rm -rf "$TMP_DIR"

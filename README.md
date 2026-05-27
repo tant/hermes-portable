@@ -55,6 +55,8 @@ hermes-portable/
 
 ## API Keys
 
+Out of the box, a fresh install defaults to a free Nous model (`openrouter/owl-alpha`), so you can start chatting without a key. Paid models and other providers need credits or your own key.
+
 Edit `data/.env`:
 ```env
 OPENROUTER_API_KEY=...

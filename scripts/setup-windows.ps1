@@ -325,7 +325,27 @@ try {
 }
 
 # ---------------------------------------------------------------------------
-# 11. Mark ready
+# 11. Seed a free default model (only on a fresh install)
+# ---------------------------------------------------------------------------
+# So the agent works out of the box without the interactive wizard, point it at
+# the one currently-free Nous model. Skipped if a config already exists, so a
+# user's own choices are never overwritten. owl-alpha is a free preview and may
+# change upstream; users can re-select any model via the launcher menu.
+$dataConfig = Join-Path $Root "data\config.yaml"
+if (-not (Test-Path $dataConfig)) {
+    Write-Step "Seeding free default model ..."
+    New-Item -ItemType Directory -Force -Path (Join-Path $Root "data") | Out-Null
+    $hermesExe = Join-Path $venvDir "Scripts\hermes.exe"
+    if (Test-Path $hermesExe) {
+        $env:HERMES_HOME = Join-Path $Root "data"
+        & $hermesExe config set model.provider nous 2>$null | Out-Null
+        & $hermesExe config set model.default openrouter/owl-alpha 2>$null | Out-Null
+        Write-Done "Default model set to openrouter/owl-alpha (free)"
+    }
+}
+
+# ---------------------------------------------------------------------------
+# 12. Mark ready
 # ---------------------------------------------------------------------------
 "" | Out-File (Join-Path $RuntimeDir "ready.flag") -Encoding utf8
 
