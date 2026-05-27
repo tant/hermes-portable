@@ -2,8 +2,6 @@
 
 Run a fully self-contained Hermes Agent from a single folder or USB drive. No global install, no host pollution — all configs, conversations, memories, and skills stay inside the folder.
 
-Demo video: https://youtu.be/gL220WHXWeo
-
 ## Features
 
 - **Zero host dependencies** — Python, Node.js, uv, and ripgrep are downloaded locally; nothing is required pre-installed.
