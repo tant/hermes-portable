@@ -33,6 +33,16 @@ $RgUrl      = "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ri
 $GitUrl     = "https://github.com/git-for-windows/git/releases/download/v2.53.0.windows.1/MinGit-2.53.0-64-bit.zip"
 $SourceUrl  = "https://github.com/NousResearch/hermes-agent/archive/refs/heads/main.zip"
 
+# Expected SHA256 of pinned assets (authenticity check; see Verify-Checksum).
+# ripgrep/git are pinned trust-on-first-use (no upstream per-asset SHA256).
+# Regenerate with: bash scripts/dev/gather-checksums.sh
+# When bumping any pinned version above, update the matching value here.
+$PythonSha = "647b66ff4552e70aec3bf634dd470891b4a2b291e8e8715b3bdb162f577d4c55"
+$NodeSha   = "55b639295920b219bb2acbcfa00f90393a2789095b7323f79475c9f34795f217"
+$UvSha     = "d31c3d01ca3e1a75e15ed9514c135239770b6b40a99cae716661e28e433aa495"
+$RgSha     = "d0f534024c42afd6cb4d38907c25cd2b249b79bbe6cc1dbee8e3e37c2b6e25a1"
+$GitSha    = "82b562c918ec87b2ef5316ed79bb199e3a25719bb871a0f10294acf21ebd08cd"
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -104,6 +114,15 @@ function Download-File($Url, $OutFile) {
     Write-Host $msgDone -ForegroundColor Green
 }
 
+function Verify-Checksum($File, $Expected) {
+    if ([string]::IsNullOrWhiteSpace($Expected)) { return }   # skip (e.g. source)
+    $actual = (Get-FileHash -Path $File -Algorithm SHA256).Hash.ToLower()
+    if ($actual -ne $Expected.ToLower()) {
+        Remove-Item -Force $File -ErrorAction SilentlyContinue
+        throw "Checksum mismatch for $(Split-Path $File -Leaf): expected $Expected, got $actual"
+    }
+}
+
 function Extract-TarGz($Archive, $Destination) {
     $label = Split-Path $Archive -Leaf
     Write-Host "        Extracting $label ..." -NoNewline
@@ -171,6 +190,7 @@ if (Test-Path $readyFlag) {
 Write-Step "Installing portable Python 3.11 ..."
 $pyArchive = Join-Path $RuntimeDir "python.tar.gz"
 Download-File $PythonUrl $pyArchive
+Verify-Checksum $pyArchive $PythonSha
 Extract-TarGz $pyArchive (Join-Path $RuntimeDir "python")
 Write-Done "Python ready"
 
@@ -180,6 +200,7 @@ Write-Done "Python ready"
 Write-Step "Installing Node.js 22 LTS ..."
 $nodeArchive = Join-Path $RuntimeDir "node.zip"
 Download-File $NodeUrl $nodeArchive
+Verify-Checksum $nodeArchive $NodeSha
 $nodeTemp = Join-Path $TempDir "node"
 Extract-Zip $nodeArchive $nodeTemp
 Move-SubfolderContents $nodeTemp (Join-Path $RuntimeDir "node")
@@ -191,6 +212,7 @@ Write-Done "Node.js ready"
 Write-Step "Installing uv ..."
 $uvArchive = Join-Path $RuntimeDir "uv.zip"
 Download-File $UvUrl $uvArchive
+Verify-Checksum $uvArchive $UvSha
 Extract-Zip $uvArchive (Join-Path $RuntimeDir "uv")
 Write-Done "uv ready"
 
@@ -200,6 +222,7 @@ Write-Done "uv ready"
 Write-Step "Installing ripgrep ..."
 $rgArchive = Join-Path $RuntimeDir "rg.zip"
 Download-File $RgUrl $rgArchive
+Verify-Checksum $rgArchive $RgSha
 $rgTemp = Join-Path $TempDir "rg"
 Extract-Zip $rgArchive $rgTemp
 $rgExe = Get-ChildItem $rgTemp -Recurse -Filter "rg.exe" | Select-Object -First 1
@@ -217,6 +240,7 @@ Write-Step "Installing portable Git (optional) ..."
 $gitArchive = Join-Path $RuntimeDir "git.zip"
 try {
     Download-File $GitUrl $gitArchive
+    Verify-Checksum $gitArchive $GitSha
     Extract-Zip $gitArchive (Join-Path $RuntimeDir "git")
     Write-Done "Git ready"
 } catch {

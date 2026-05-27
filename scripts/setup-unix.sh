@@ -7,6 +7,7 @@
 # ============================================================================
 
 set -e
+. "$(cd "$(dirname "$0")" && pwd)/lib-portable.sh"
 
 PORTABLE_ROOT="$1"
 if [ -z "$PORTABLE_ROOT" ]; then
@@ -75,8 +76,46 @@ else
     PYTHON_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20260510/cpython-3.11.15+20260510-${ARCH_RAW}-unknown-linux-gnu-install_only.tar.gz"
     NODE_URL="https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-${ARCH}.tar.xz"
     UV_URL="https://github.com/astral-sh/uv/releases/download/0.7.8/uv-${ARCH_RAW}-unknown-linux-gnu.tar.gz"
-    RG_URL="https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-${ARCH_RAW}-unknown-linux-musl.tar.gz"
+    if [ "$ARCH" = "arm64" ]; then
+        RG_URL="https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-${PYTHON_ARCH}-unknown-linux-gnu.tar.gz"
+    else
+        RG_URL="https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-${ARCH_RAW}-unknown-linux-musl.tar.gz"
+    fi
 fi
+
+# ---------------------------------------------------------------------------
+# Expected SHA256 of each pinned asset (authenticity check; see download()).
+# Node/Python/uv values are from the publishers' checksums; ripgrep is pinned
+# trust-on-first-use (no per-asset SHA256 is published upstream).
+# Regenerate with: bash scripts/dev/gather-checksums.sh
+# When bumping any pinned version above, update the matching value here.
+# ---------------------------------------------------------------------------
+case "${PLATFORM}-${ARCH}" in
+    macos-arm64)
+        PY_SHA256="03bcedae9b19a48888d7dc8ba064f73f6efaaf2b13f6a8e1a1bcc062df13e855"
+        NODE_SHA256="e9404633bc02a5162c5c573b1e2490f5fb44648345d64a958b17e325729a5e42"
+        UV_SHA256="ad6b3825ba277de70b9d0a37055f7d828f3f37416aee1cde65000f330efd4587"
+        RG_SHA256="24ad76777745fbff131c8fbc466742b011f925bfa4fffa2ded6def23b5b937be"
+        ;;
+    macos-x64)
+        PY_SHA256="5e388e3db8b59c8487ddd1423330b90fc7f0c6ef7eadec945441a180d0dd4bc4"
+        NODE_SHA256="6698587713ab565a94a360e091df9f6d91c8fadda6d00f0cf6526e9b40bed250"
+        UV_SHA256="f046249639014eb70b43cbaf83eb6f56aac724ada354f9b9aad65f9960737920"
+        RG_SHA256="fc87e78f7cb3fea12d69072e7ef3b21509754717b746368fd40d88963630e2b3"
+        ;;
+    linux-x64)
+        PY_SHA256="14b5843a3492925dab6fdb7cca7d09af83ddf1fe2851f72cf9b1edc8ed2b1db7"
+        NODE_SHA256="69b09dba5c8dcb05c4e4273a4340db1005abeafe3927efda2bc5b249e80437ec"
+        UV_SHA256="285981409c746508c1fd125f66a1ea654e487bf1e4d9f45371a062338f788adb"
+        RG_SHA256="4cf9f2741e6c465ffdb7c26f38056a59e2a2544b51f7cc128ef28337eeae4d8e"
+        ;;
+    linux-arm64)
+        PY_SHA256="0bc1b7acbb888881addf3a1c887a47d510d4300db6e3ad2ba461154b982e456a"
+        NODE_SHA256="08bfbf538bad0e8cbb0269f0173cca28d705874a67a22f60b57d99dc99e30050"
+        UV_SHA256="da9e1c97f1452b25c8955127c92da7b68be228ad0b43bf50bba4dadb25c8b337"
+        RG_SHA256="c827481c4ff4ea10c9dc7a4022c8de5db34a5737cb74484d62eb94a95841ab2f"
+        ;;
+esac
 
 SOURCE_URL="https://github.com/NousResearch/hermes-agent/archive/refs/heads/main.tar.gz"
 
@@ -99,6 +138,7 @@ warn() {
 download() {
     local url="$1"
     local out="$2"
+    local expected_sha="${3:-}"   # empty => skip checksum (e.g. source tarball)
     local name
     name="$(basename "$url")"
 
@@ -106,17 +146,18 @@ download() {
         local size
         size="$(stat -f%z "$out" 2>/dev/null || stat -c%s "$out" 2>/dev/null || echo 0)"
         if [ "$size" -gt 0 ]; then
-            # Verify archive integrity to handle interrupted downloads
             local corrupt=0
             if [[ "$name" == *.tar.gz ]]; then
                 gzip -t "$out" 2>/dev/null || corrupt=1
             elif [[ "$name" == *.tar.xz ]]; then
                 xz -t "$out" 2>/dev/null || corrupt=1
             fi
-            
             if [ "$corrupt" -eq 1 ]; then
                 warn "$name is corrupted or incomplete — deleting and re-downloading ..."
                 rm -f "$out"
+            elif ! ph_verify_checksum "$out" "$expected_sha"; then
+                warn "$name failed checksum — deleting and re-downloading ..."
+                # ph_verify_checksum already removed the file.
             else
                 echo "        $name already cached ($(( size / 1024 / 1024 )) MB)."
                 return 0
@@ -135,7 +176,6 @@ download() {
         return 1
     fi
 
-    # Validate downloaded file
     if [ ! -f "$out" ]; then
         echo "        Download succeeded but file not found: $out"
         return 1
@@ -145,6 +185,10 @@ download() {
     if [ "$dsize" -eq 0 ]; then
         rm -f "$out"
         echo "        Downloaded file is 0 bytes: $name"
+        return 1
+    fi
+    if ! ph_verify_checksum "$out" "$expected_sha"; then
+        echo "        Refusing to use $name (checksum mismatch)."
         return 1
     fi
     echo "        Download complete ($(( dsize / 1024 / 1024 )) MB)."
@@ -189,7 +233,7 @@ extract_txz() {
 # ---------------------------------------------------------------------------
 step "Installing portable Python 3.11 ..."
 PY_ARCHIVE="$RUNTIME_DIR/python.tar.gz"
-if ! download "$PYTHON_URL" "$PY_ARCHIVE"; then
+if ! download "$PYTHON_URL" "$PY_ARCHIVE" "$PY_SHA256"; then
     echo "[ERROR] Failed to download Python. Check your internet connection."
     exit 1
 fi
@@ -209,7 +253,7 @@ NODE_ARCHIVE="$RUNTIME_DIR/node.tar.xz"
 if [ "$PLATFORM" = "macos" ]; then
     NODE_ARCHIVE="$RUNTIME_DIR/node.tar.gz"
 fi
-if ! download "$NODE_URL" "$NODE_ARCHIVE"; then
+if ! download "$NODE_URL" "$NODE_ARCHIVE" "$NODE_SHA256"; then
     warn "Node.js download failed — web tools may be limited"
 else
     # Bug fix: skip re-extraction if already unpacked
@@ -234,7 +278,7 @@ fi
 # ---------------------------------------------------------------------------
 step "Installing uv ..."
 UV_ARCHIVE="$RUNTIME_DIR/uv.tar.gz"
-if ! download "$UV_URL" "$UV_ARCHIVE"; then
+if ! download "$UV_URL" "$UV_ARCHIVE" "$UV_SHA256"; then
     echo "[ERROR] Failed to download uv. Aborting."
     exit 1
 fi
@@ -254,15 +298,13 @@ fi
 # ---------------------------------------------------------------------------
 step "Installing ripgrep ..."
 RG_ARCHIVE="$RUNTIME_DIR/rg.tar.gz"
-if download "$RG_URL" "$RG_ARCHIVE"; then
+if download "$RG_URL" "$RG_ARCHIVE" "$RG_SHA256"; then
     mkdir -p "$TMP_DIR/rg"
-    tar -xzf "$RG_ARCHIVE" -C "$TMP_DIR/rg" --strip-components=1
-    if [ -f "$TMP_DIR/rg/rg" ]; then
-        cp "$TMP_DIR/rg/rg" "$BIN_DIR/rg"
-        chmod +x "$BIN_DIR/rg"
-        done_msg "ripgrep ready"
-    elif [ -f "$TMP_DIR/rg/ripgrep-14.1.1-*/rg" ]; then
-        cp "$TMP_DIR/rg/ripgrep-"*/rg "$BIN_DIR/rg"
+    tar -xzf "$RG_ARCHIVE" -C "$TMP_DIR/rg" --strip-components=1 2>/dev/null || \
+        tar -xzf "$RG_ARCHIVE" -C "$TMP_DIR/rg"
+    RG_BIN="$(find "$TMP_DIR/rg" -type f -name rg -print -quit 2>/dev/null)"
+    if [ -n "$RG_BIN" ] && [ -f "$RG_BIN" ]; then
+        cp "$RG_BIN" "$BIN_DIR/rg"
         chmod +x "$BIN_DIR/rg"
         done_msg "ripgrep ready"
     else

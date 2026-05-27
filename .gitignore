@@ -4,3 +4,9 @@ data/
 src/
 *.flag
 *.log
+
+# Live test sandbox (real runtime downloads, never committed)
+test-run/
+
+# Internal planning docs (kept local, not published)
+docs/superpowers/

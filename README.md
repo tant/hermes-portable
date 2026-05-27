@@ -77,6 +77,10 @@ graph TD
 2. **Local Path Sandboxing**: The scripts download self-contained Python and Node.js binaries into `.cache/runtimes/` and prepend them directly to the active process `PATH`.
 3. **No Registry/Host Pollution**: System configurations, environment variables, or packages on the host machine are left untouched.
 
+### Automatic Updates & Integrity
+- **Always up to date**: On every launch the script checks GitHub for the latest `main` commit of Hermes Agent and, if newer, downloads it and refreshes dependencies automatically. When you are offline it prints a short notice and keeps running the version already on the drive — it never blocks startup.
+- **Verified downloads**: Each pinned runtime binary (Python, Node.js, uv, ripgrep) is checked against a known SHA256 before it is used; a mismatched or tampered download is discarded and re-fetched. The pinned runtimes themselves stay fixed for stability.
+
 ---
 
 ## 📁 Workspace Directory Structure

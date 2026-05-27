@@ -16,6 +16,9 @@ HERMES_HOME="$PORTABLE_ROOT/data"
 CACHE_DIR="$PORTABLE_ROOT/.cache"
 SRC_DIR="$PORTABLE_ROOT/src"
 
+# Shared helpers (path_hash, checksum, source auto-update).
+. "$PORTABLE_ROOT/scripts/lib-portable.sh"
+
 # ---------------------------------------------------------------------------
 # Detect OS and architecture
 # ---------------------------------------------------------------------------
@@ -56,8 +59,7 @@ if [ ! -f "$RUNTIME_DIR/ready.flag" ]; then
     echo "  Please be patient."
     echo "============================================"
     echo ""
-    bash "$PORTABLE_ROOT/scripts/setup-unix.sh" "$PORTABLE_ROOT"
-    if [ $? -ne 0 ]; then
+    if ! bash "$PORTABLE_ROOT/scripts/setup-unix.sh" "$PORTABLE_ROOT"; then
         echo ""
         echo "[ERROR] Setup failed. Please check your internet connection and try again."
         exit 1
@@ -93,7 +95,7 @@ if [ ! -x "$VIRTUAL_ENV/bin/python" ]; then
         LOCAL_BASE="/tmp"
     fi
 
-    DRIVE_ID="$(echo "$RUNTIME_DIR" | md5sum 2>/dev/null | cut -c1-8 || echo "hermes")"
+    DRIVE_ID="$(path_hash "$RUNTIME_DIR")"
     VIRTUAL_ENV="${LOCAL_BASE}/hermes-portable-venv-${DRIVE_ID}"
     export UV_CACHE_DIR="${LOCAL_BASE}/hermes-uv-cache-${DRIVE_ID}"
     mkdir -p "$UV_CACHE_DIR"
@@ -105,15 +107,23 @@ if [ ! -x "$VIRTUAL_ENV/bin/python" ]; then
     if ! "$UV_EXE" venv "$VIRTUAL_ENV" --python "$PYTHON_EXE" --seed 2>/dev/null; then
         "$UV_EXE" venv "$VIRTUAL_ENV" --python "$PYTHON_EXE"
     fi
-    if ! "$UV_EXE" pip install --python "$VIRTUAL_ENV/bin/python" --link-mode=copy \
+    if "$UV_EXE" pip install --python "$VIRTUAL_ENV/bin/python" --link-mode=copy \
         -e "$SRC_DIR/hermes-agent[all]" \
-        "python-telegram-bot[webhooks]==22.6" 2>/dev/null; then
+        "python-telegram-bot[webhooks]==22.6"; then
+        echo "[OK]    Venv rebuilt."
+    else
+        echo "[WARN]  uv install failed — falling back to pip ..."
         "$VIRTUAL_ENV/bin/python" -m ensurepip --upgrade >/dev/null 2>&1 || true
-        "$VIRTUAL_ENV/bin/python" -m pip install \
+        if "$VIRTUAL_ENV/bin/python" -m pip install \
             -e "$SRC_DIR/hermes-agent[all]" \
-            "python-telegram-bot[webhooks]==22.6" 2>/dev/null || true
+            "python-telegram-bot[webhooks]==22.6"; then
+            echo "[OK]    Venv rebuilt (via pip)."
+        else
+            echo "[ERROR] Failed to rebuild the virtual environment."
+            echo "        Try: bash scripts/reset-unix.sh soft   (then relaunch)"
+            exit 1
+        fi
     fi
-    echo "[OK]    Venv rebuilt."
 fi
 
 export HERMES_HOME="$HERMES_HOME"
@@ -131,6 +141,71 @@ export NPM_CONFIG_PREFIX="$RUNTIME_DIR/node"
 # Prevent Node/npm from writing to host home directory
 export HOME="$PORTABLE_ROOT/.cache/unix-home"
 mkdir -p "$HOME"
+
+# ---------------------------------------------------------------------------
+# Auto-check & update source to latest main (never blocks; offline-safe).
+# ---------------------------------------------------------------------------
+check_and_update_source() {
+    local repo="NousResearch/hermes-agent"
+    local src="$SRC_DIR/hermes-agent"
+    local sha_file="$src/.source-sha"
+    local remote local_sha
+    [ -d "$src" ] || return 0
+
+    remote="$(ph_fetch_remote_sha "$repo" main)" || {
+        echo "[WARN]  Could not check for updates (offline?) — using existing source."
+        return 0
+    }
+
+    local_sha=""
+    [ -f "$sha_file" ] && local_sha="$(cat "$sha_file" 2>/dev/null)"
+
+    # Fresh install (no baseline): setup just installed tip-of-main, so record
+    # the current remote SHA without re-downloading.
+    if [ -z "$local_sha" ]; then
+        echo "$remote" > "$sha_file" 2>/dev/null || true
+        return 0
+    fi
+
+    [ "$remote" = "$local_sha" ] && return 0
+
+    echo "[INFO]  New Hermes version available — updating ($local_sha -> $remote) ..."
+    local tmp
+    tmp="$(mktemp -d 2>/dev/null)" || {
+        echo "[WARN]  Could not create temp dir — keeping current source."
+        return 0
+    }
+    local archive="$tmp/source.tar.gz"
+    if ! curl -fL --retry 3 --connect-timeout 30 --max-time 600 \
+        "https://github.com/${repo}/archive/${remote}.tar.gz" -o "$archive"; then
+        echo "[WARN]  Update download failed — keeping current source."
+        rm -rf "$tmp"; return 0
+    fi
+    mkdir -p "$tmp/extracted"
+    if ! tar -xzf "$archive" -C "$tmp/extracted" --strip-components=1; then
+        echo "[WARN]  Update archive corrupt — keeping current source."
+        rm -rf "$tmp"; return 0
+    fi
+    # Swap in the new source, preserving nothing (data lives in HERMES_HOME).
+    rm -rf "$src"
+    if ! mv "$tmp/extracted" "$src"; then
+        echo "[ERROR] Failed to install updated source. Run: bash scripts/reset-unix.sh soft"
+        rm -rf "$tmp"; return 0
+    fi
+    echo "$remote" > "$sha_file" 2>/dev/null || true
+    rm -rf "$tmp"
+
+    echo "[INFO]  Reinstalling dependencies for the update ..."
+    if "$VIRTUAL_ENV/bin/python" -m pip install --quiet \
+        -e "$src[all]" "python-telegram-bot[webhooks]==22.6"; then
+        echo "[OK]    Updated to $remote."
+    else
+        echo "[WARN]  Update installed but dependency refresh failed — run Advanced > Update if Hermes misbehaves."
+    fi
+    return 0
+}
+
+check_and_update_source
 
 # ---------------------------------------------------------------------------
 # Launch Hermes

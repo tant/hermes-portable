@@ -66,6 +66,19 @@ if [ -d "$ROOT/src/hermes-agent" ]; then
     FOLDERS+=("$ROOT/src/hermes-agent")
 fi
 
+# The venv and uv cache live on local /tmp (exFAT can't host them). They leak
+# onto the host, so reset must clean them too. Target this drive's copy via the
+# saved pointer file, plus a glob for any stragglers.
+TMP_BASE="${TMPDIR:-/tmp}"
+for ptr in "$ROOT"/.cache/runtimes/*/venv.path; do
+    [ -f "$ptr" ] || continue
+    p="$(cat "$ptr" 2>/dev/null)"
+    [ -n "$p" ] && [ -d "$p" ] && FOLDERS+=("$p")
+done
+for d in "$TMP_BASE"/hermes-portable-venv-* "$TMP_BASE"/hermes-uv-cache-*; do
+    [ -d "$d" ] && FOLDERS+=("$d")
+done
+
 if [ "$MODE" = "full" ]; then
     if [ -d "$ROOT/data" ]; then
         FOLDERS+=("$ROOT/data")
