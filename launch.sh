@@ -196,8 +196,13 @@ check_and_update_source() {
     rm -rf "$tmp"
 
     echo "[INFO]  Reinstalling dependencies for the update ..."
-    if "$VIRTUAL_ENV/bin/python" -m pip install --quiet \
-        -e "$src[all]" "python-telegram-bot[webhooks]==22.6"; then
+    # Prefer uv (the venv is created without pip, so `python -m pip` is absent);
+    # fall back to pip only if uv is unavailable. The editable reinstall also
+    # re-points the venv at this drive's source path.
+    if "$RUNTIME_DIR/uv/uv" pip install --python "$VIRTUAL_ENV/bin/python" --link-mode=copy \
+        -e "$src[all]" "python-telegram-bot[webhooks]==22.6" 2>/dev/null \
+       || "$VIRTUAL_ENV/bin/python" -m pip install --quiet \
+        -e "$src[all]" "python-telegram-bot[webhooks]==22.6" 2>/dev/null; then
         echo "[OK]    Updated to $remote."
     else
         echo "[WARN]  Update installed but dependency refresh failed — run Advanced > Update if Hermes misbehaves."

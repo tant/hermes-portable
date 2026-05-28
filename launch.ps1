@@ -82,7 +82,12 @@ function Check-AndUpdateSource {
         Move-Item $extract $AgentDir
         Set-Content -Path (Join-Path $AgentDir ".source-sha") -Value $remote -NoNewline
         Write-Host "[INFO]  Reinstalling dependencies for the update ..."
-        & (Join-Path $VenvDir "Scripts\python.exe") -m pip install --quiet -e "$AgentDir[all]" "python-telegram-bot[webhooks]==22.6"
+        # The venv is created without pip, so use uv (which the runtime ships);
+        # the editable reinstall also re-points the venv at this drive's source.
+        $uvExe = Join-Path $RuntimeDir "uv\uv.exe"
+        $venvPy = Join-Path $VenvDir "Scripts\python.exe"
+        & $uvExe pip install --python $venvPy --link-mode=copy -e "$AgentDir[all]" "python-telegram-bot[webhooks]==22.6" 2>$null
+        if ($LASTEXITCODE -ne 0) { & $venvPy -m pip install --quiet -e "$AgentDir[all]" "python-telegram-bot[webhooks]==22.6" 2>$null }
         if ($LASTEXITCODE -eq 0) { Write-Host "[OK]    Updated to $remote." }
         else { Write-Host "[WARN]  Update installed but dependency refresh failed - use Advanced > Update if Hermes misbehaves." }
     } catch {
