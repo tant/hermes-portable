@@ -1,12 +1,43 @@
-# Ignore runtime cache and user data
-data/
-.cache/
-src/
-*.flag
-*.log
+# ============================================================================
+# Hermes Portable — .gitignore
+# Track only the distribution: launchers (launch.sh/.bat/.ps1), scripts/,
+# README. Everything below is downloaded, generated, or private per machine
+# and is recreated on first run.
+# ============================================================================
 
-# Live test sandbox (real runtime downloads, never committed)
+# Downloaded runtimes, venv, isolated HOME/AppData — rebuilt per machine
+.cache/
+
+# Private user data: API keys, config, sessions, memory, skills, auth tokens
+data/
+
+# Hermes Agent source — downloaded/auto-updated on first run
+src/
+
+# Live test sandbox (full local install used for testing)
 test-run/
 
 # Internal planning docs (kept local, not published)
 docs/superpowers/
+
+# Runtime markers and logs
+*.flag
+*.log
+
+# OS junk
+.DS_Store
+.AppleDouble
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Stray Python artifacts (should live under .cache, but just in case)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
