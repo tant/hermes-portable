@@ -86,7 +86,7 @@ Per-platform runtime is ~600–900 MB (Python, Node, uv, caches); the source is 
 
 ## Updating
 
-Updates apply automatically on each launch. To update manually: menu **[4] Advanced → [5] Update Hermes**, run `hermes update` in a chat, or delete `.cache/runtimes/<platform>` and `src/hermes-agent` to rebuild from scratch.
+Updates apply automatically on each launch. To update manually: menu **[5] Advanced → [5] Update Hermes**, run `hermes update` in a chat, or delete `.cache/runtimes/<platform>` and `src/hermes-agent` to rebuild from scratch.
 
 ## Security
 
