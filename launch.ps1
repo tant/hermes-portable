@@ -46,6 +46,36 @@ $env:APPDATA               = Join-Path $CacheDir "windows-appdata"
 $env:LOCALAPPDATA          = Join-Path $CacheDir "windows-localappdata"
 New-Item -ItemType Directory -Force -Path $env:APPDATA, $env:LOCALAPPDATA | Out-Null
 
+# ---- Active profile (launcher-managed) ----
+# Per-profile alias wrappers live under the isolated home; put them on PATH.
+$env:PATH = (Join-Path $env:APPDATA "..\.local\bin") + ";" + $env:PATH
+
+$ActiveProfileFile = Join-Path $HermesHome ".active-profile"
+$ActiveProfile = "default"
+if (Test-Path $ActiveProfileFile) {
+    $ActiveProfile = (Get-Content $ActiveProfileFile -Raw).Trim()
+    if (-not $ActiveProfile) { $ActiveProfile = "default" }
+}
+if ($ActiveProfile -ne "default" -and -not (Test-Path (Join-Path $HermesHome "profiles\$ActiveProfile"))) {
+    $ActiveProfile = "default"
+}
+if ($ActiveProfile -eq "default") { $ProfileDir = $HermesHome }
+else { $ProfileDir = Join-Path $HermesHome "profiles\$ActiveProfile" }
+
+# Route Hermes calls to the active profile (no -p for default).
+function Invoke-Hermes {
+    if ($ActiveProfile -eq "default") { & hermes @args }
+    else { & hermes -p $ActiveProfile @args }
+}
+
+function Set-ActiveProfile($name) {
+    Set-Content -Path $ActiveProfileFile -Value $name -NoNewline
+    $script:ActiveProfile = $name
+    if ($name -eq "default") { $script:ProfileDir = $HermesHome }
+    else { $script:ProfileDir = Join-Path $HermesHome "profiles\$name" }
+    & hermes profile use $name 2>$null | Out-Null
+}
+
 # ---- Auto-check & update source (never blocks; offline-safe) ----
 function Get-RemoteSha {
     param([string]$Repo = "NousResearch/hermes-agent", [string]$Branch = "main")
@@ -110,16 +140,16 @@ $cliArgs = $args
 if ($cliArgs.Count -gt 0 -and $cliArgs[0] -ieq "hermes") {
     if ($cliArgs.Count -gt 1) { $cliArgs = $cliArgs[1..($cliArgs.Count-1)] } else { $cliArgs = @() }
 }
-if ($cliArgs.Count -gt 0) { & hermes @cliArgs; exit }
+if ($cliArgs.Count -gt 0) { Invoke-Hermes @cliArgs; exit }
 
 function Get-Status {
     $script:SetupStatus = "Not configured"
-    $envFile = Join-Path $HermesHome ".env"
+    $envFile = Join-Path $ProfileDir ".env"
     if ((Test-Path $envFile) -and (Select-String -Path $envFile -Pattern '^[A-Z].*=' -Quiet)) {
         $script:SetupStatus = "Configured"
     }
     $script:GatewayStatus = "Stopped"
-    $pidFile = Join-Path $HermesHome "gateway.pid"
+    $pidFile = Join-Path $ProfileDir "gateway.pid"
     if (Test-Path $pidFile) {
         $m = Select-String -Path $pidFile -Pattern '"pid":(\d+)'
         if ($m) {
@@ -139,26 +169,33 @@ function Show-Menu {
         Write-Host "                    HERMES PORTABLE LAUNCHER"
         Write-Host "----------------------------------------------------------------"
         Write-Host (" Setup    " + $script:SetupStatus)
+        Write-Host (" Profile  " + $ActiveProfile)
         Write-Host (" Gateway  " + $script:GatewayStatus)
         Write-Host "----------------------------------------------------------------"
         Write-Host "  [1]  Start Hermes Chat"
         Write-Host "  [2]  Setup / Reconfigure Hermes"
         if ($script:GatewayStatus -like "Running*") { Write-Host "  [3]  Stop Gateway  [live]" }
         else { Write-Host "  [3]  Start Gateway" }
-        Write-Host "  [4]  Advanced Options  ->"
-        Write-Host "  [5]  Exit"
+        Write-Host "  [4]  Profiles  ->"
+        Write-Host "  [5]  Advanced Options  ->"
+        Write-Host "  [6]  Exit"
         Write-Host "----------------------------------------------------------------"
         $choice = Read-Host "Select option"
         switch ($choice) {
-            "1" { Clear-Host; & hermes }
-            "2" { Clear-Host; & hermes setup }
+            "1" { Clear-Host; Invoke-Hermes }
+            "2" { Clear-Host; Invoke-Hermes setup }
             "3" {
-                if ($script:GatewayStatus -like "Running*") { & hermes gateway stop }
-                else { Start-Process -NoNewWindow hermes -ArgumentList "gateway"; Start-Sleep 2 }
+                if ($script:GatewayStatus -like "Running*") { Invoke-Hermes gateway stop }
+                else {
+                    if ($ActiveProfile -eq "default") { Start-Process -NoNewWindow hermes -ArgumentList "gateway" }
+                    else { Start-Process -NoNewWindow hermes -ArgumentList "-p","$ActiveProfile","gateway" }
+                    Start-Sleep 2
+                }
                 Read-Host "Press Enter to continue"
             }
-            "4" { Show-Advanced }
-            "5" { Clear-Host; Write-Host "Goodbye!"; exit }
+            "4" { Show-Profiles }
+            "5" { Show-Advanced }
+            "6" { Clear-Host; Write-Host "Goodbye!"; exit }
             default { }
         }
     }
@@ -180,18 +217,98 @@ function Show-Advanced {
         Write-Host "----------------------------------------------------------------"
         $choice = Read-Host "Select option"
         switch ($choice) {
-            "1" { Clear-Host; & hermes doctor; Read-Host "Press Enter to continue" }
+            "1" { Clear-Host; Invoke-Hermes doctor; Read-Host "Press Enter to continue" }
             "2" {
                 Clear-Host
-                $log = Join-Path $HermesHome "logs\gateway.log"
+                $log = Join-Path $ProfileDir "logs\gateway.log"
                 if (Test-Path $log) { Write-Host "=== Gateway Log (last 20 lines) ==="; Get-Content $log -Tail 20 }
                 else { Write-Host "No logs found." }
                 Read-Host "Press Enter to continue"
             }
-            "3" { Clear-Host; & hermes config edit }
-            "4" { & hermes gateway restart; Read-Host "Press Enter to continue" }
-            "5" { Clear-Host; & hermes update; Read-Host "Press Enter to continue" }
+            "3" { Clear-Host; Invoke-Hermes config edit }
+            "4" { Invoke-Hermes gateway restart; Read-Host "Press Enter to continue" }
+            "5" { Clear-Host; Invoke-Hermes update; Read-Host "Press Enter to continue" }
             "6" { return }
+            default { }
+        }
+    }
+}
+
+function Show-Profiles {
+    while ($true) {
+        Clear-Host
+        Write-Host ""
+        Write-Host "----------------------------------------------------------------"
+        Write-Host "                          Profiles"
+        Write-Host "----------------------------------------------------------------"
+        Write-Host (" Active  " + $ActiveProfile)
+        Write-Host ""
+        & hermes profile list
+        Write-Host "----------------------------------------------------------------"
+        Write-Host "  [1]  Switch profile"
+        Write-Host "  [2]  Create profile"
+        Write-Host "  [3]  Rename profile"
+        Write-Host "  [4]  Delete profile"
+        Write-Host "  [5]  Export profile"
+        Write-Host "  [6]  Import profile"
+        Write-Host "  [7]  Back to Main Menu"
+        Write-Host "----------------------------------------------------------------"
+        $choice = Read-Host "Select option"
+        switch ($choice) {
+            "1" {
+                & hermes profile list
+                $name = Read-Host "Profile name to switch to (blank = cancel)"
+                if ($name) {
+                    & hermes profile use $name
+                    if ($LASTEXITCODE -eq 0) { Set-ActiveProfile $name; Write-Host "Active profile: $name" }
+                    else { Write-Host "Could not switch to '$name'." }
+                    Read-Host "Press Enter to continue"
+                }
+            }
+            "2" {
+                $name = Read-Host "New profile name (lowercase, alphanumeric, blank = cancel)"
+                if ($name) {
+                    & hermes profile create $name
+                    $yn = Read-Host "Switch to '$name' now? [y/N]"
+                    if ($yn -match '^[yY]') { & hermes profile use $name 2>$null | Out-Null; Set-ActiveProfile $name }
+                    Read-Host "Press Enter to continue"
+                }
+            }
+            "3" {
+                & hermes profile list
+                $old = Read-Host "Rename which profile (blank = cancel)"
+                if ($old) {
+                    $new = Read-Host "New name"
+                    if ($new) {
+                        & hermes profile rename $old $new
+                        if ($ActiveProfile -eq $old) { Set-ActiveProfile $new }
+                        Read-Host "Press Enter to continue"
+                    }
+                }
+            }
+            "4" {
+                & hermes profile list
+                $name = Read-Host "Delete which profile (blank = cancel)"
+                if ($name) {
+                    & hermes profile delete $name
+                    if ($ActiveProfile -eq $name) { Set-ActiveProfile "default"; Write-Host "Active profile was deleted - reset to default." }
+                    Read-Host "Press Enter to continue"
+                }
+            }
+            "5" {
+                & hermes profile list
+                $name = Read-Host "Export which profile (blank = cancel)"
+                if ($name) {
+                    $path = Read-Host "Output archive path (blank = <name>.tar.gz)"
+                    if ($path) { & hermes profile export $name -o $path } else { & hermes profile export $name }
+                    Read-Host "Press Enter to continue"
+                }
+            }
+            "6" {
+                $path = Read-Host "Path to profile archive (blank = cancel)"
+                if ($path) { & hermes profile import $path; Read-Host "Press Enter to continue" }
+            }
+            "7" { return }
             default { }
         }
     }
