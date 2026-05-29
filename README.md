@@ -53,6 +53,13 @@ hermes-portable/
 └── .cache/runtimes/        # Per-platform portable interpreters
 ```
 
+## Profiles
+
+Run separate agents (e.g. dev / project-manager / test) from one folder via menu
+`[4] Profiles` — switch, create, rename, delete, export, import. Each profile has
+its own config, keys, sessions, memory, and skills under `data/profiles/<name>`;
+the active one is shown on the status panel and remembered in `data/.active-profile`.
+
 ## API Keys
 
 Out of the box, a fresh install defaults to a free Nous model (`openrouter/owl-alpha`), so you can start chatting without a key. Paid models and other providers need credits or your own key.
