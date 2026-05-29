@@ -356,8 +356,9 @@ show_menu() {
     else
         echo -e "  ${BRIGHT_YELLOW}[3]${RESET}  ${WHITE}Start Gateway${RESET}"
     fi
-    echo -e "  ${BRIGHT_YELLOW}[4]${RESET}  ${WHITE}Advanced Options${RESET}  ${GRAY}-->${RESET}"
-    echo -e "  ${BRIGHT_YELLOW}[5]${RESET}  ${GRAY}Exit${RESET}"
+    echo -e "  ${BRIGHT_YELLOW}[4]${RESET}  ${WHITE}Profiles${RESET}  ${GRAY}-->${RESET}"
+    echo -e "  ${BRIGHT_YELLOW}[5]${RESET}  ${WHITE}Advanced Options${RESET}  ${GRAY}-->${RESET}"
+    echo -e "  ${BRIGHT_YELLOW}[6]${RESET}  ${GRAY}Exit${RESET}"
     echo ""
     echo -e "${BRIGHT_CYAN}----------------------------------------------------------------${RESET}"
     echo ""
@@ -367,8 +368,9 @@ show_menu() {
         1) menu_chat ;;
         2) menu_setup ;;
         3) menu_gateway ;;
-        4) show_advanced ;;
-        5) menu_exit ;;
+        4) show_profiles ;;
+        5) show_advanced ;;
+        6) menu_exit ;;
         *) show_menu ;;
     esac
 }
@@ -408,6 +410,140 @@ menu_exit() {
     echo -e "${GRAY}Goodbye!${RESET}"
     echo ""
     exit 0
+}
+
+# ---------------------------------------------------------------------------
+# Profiles Menu
+# ---------------------------------------------------------------------------
+show_profiles() {
+    clear
+    echo ""
+    echo -e "${BRIGHT_CYAN}----------------------------------------------------------------${RESET}"
+    echo -e "${BOLD}${BRIGHT_WHITE}                          Profiles${RESET}"
+    echo -e "${BRIGHT_CYAN}----------------------------------------------------------------${RESET}"
+    echo ""
+    echo -e "  ${DIM}Active${RESET}  ${BRIGHT_CYAN}${ACTIVE_PROFILE}${RESET}"
+    echo ""
+    command hermes profile list
+    echo ""
+    echo -e "${BRIGHT_CYAN}----------------------------------------------------------------${RESET}"
+    echo -e "  ${BRIGHT_YELLOW}[1]${RESET}  ${WHITE}Switch profile${RESET}"
+    echo -e "  ${BRIGHT_YELLOW}[2]${RESET}  ${WHITE}Create profile${RESET}"
+    echo -e "  ${BRIGHT_YELLOW}[3]${RESET}  ${WHITE}Rename profile${RESET}"
+    echo -e "  ${BRIGHT_YELLOW}[4]${RESET}  ${WHITE}Delete profile${RESET}"
+    echo -e "  ${BRIGHT_YELLOW}[5]${RESET}  ${WHITE}Export profile${RESET}"
+    echo -e "  ${BRIGHT_YELLOW}[6]${RESET}  ${WHITE}Import profile${RESET}"
+    echo -e "  ${BRIGHT_YELLOW}[7]${RESET}  ${GRAY}Back to Main Menu${RESET}"
+    echo ""
+    read -p "$(echo -e "${BRIGHT_CYAN}Select option: ${RESET}")" choice
+    case "$choice" in
+        1) prof_switch ;;
+        2) prof_create ;;
+        3) prof_rename ;;
+        4) prof_delete ;;
+        5) prof_export ;;
+        6) prof_import ;;
+        7) show_menu ;;
+        *) show_profiles ;;
+    esac
+}
+
+# Persist a new active profile, sync Hermes' sticky pointer, refresh state.
+_prof_set_active() {
+    local name="$1"
+    echo "$name" > "$ACTIVE_PROFILE_FILE"
+    ACTIVE_PROFILE="$name"
+    PROFILE_DIR="$(ph_profile_dir "$HERMES_HOME" "$ACTIVE_PROFILE")"
+    command hermes profile use "$name" >/dev/null 2>&1 || true
+}
+
+prof_switch() {
+    clear
+    command hermes profile list
+    echo ""
+    read -p "Profile name to switch to (blank = cancel): " name
+    [ -z "$name" ] && { show_profiles; return; }
+    if command hermes profile use "$name"; then
+        _prof_set_active "$name"
+        echo -e "${BRIGHT_GREEN}Active profile: ${name}${RESET}"
+    else
+        echo -e "${RED}Could not switch to '${name}'.${RESET}"
+    fi
+    read -p "Press Enter to continue ..."
+    detect_status
+    show_profiles
+}
+
+prof_create() {
+    clear
+    read -p "New profile name (lowercase, alphanumeric, blank = cancel): " name
+    [ -z "$name" ] && { show_profiles; return; }
+    command hermes profile create "$name"
+    read -p "Switch to '${name}' now? [y/N]: " yn
+    case "$yn" in
+        [yY]*) command hermes profile use "$name" >/dev/null 2>&1 && _prof_set_active "$name" ;;
+    esac
+    read -p "Press Enter to continue ..."
+    detect_status
+    show_profiles
+}
+
+prof_rename() {
+    clear
+    command hermes profile list
+    echo ""
+    read -p "Rename which profile (blank = cancel): " old
+    [ -z "$old" ] && { show_profiles; return; }
+    read -p "New name: " new
+    [ -z "$new" ] && { show_profiles; return; }
+    command hermes profile rename "$old" "$new"
+    [ "$ACTIVE_PROFILE" = "$old" ] && _prof_set_active "$new"
+    read -p "Press Enter to continue ..."
+    detect_status
+    show_profiles
+}
+
+prof_delete() {
+    clear
+    command hermes profile list
+    echo ""
+    read -p "Delete which profile (blank = cancel): " name
+    [ -z "$name" ] && { show_profiles; return; }
+    command hermes profile delete "$name"
+    # If the active profile was removed, fall back to default.
+    if [ "$ACTIVE_PROFILE" = "$name" ]; then
+        _prof_set_active "default"
+        echo -e "${YELLOW}Active profile was deleted — reset to default.${RESET}"
+    fi
+    read -p "Press Enter to continue ..."
+    detect_status
+    show_profiles
+}
+
+prof_export() {
+    clear
+    command hermes profile list
+    echo ""
+    read -p "Export which profile (blank = cancel): " name
+    [ -z "$name" ] && { show_profiles; return; }
+    read -p "Output archive path (blank = <name>.tar.gz): " path
+    if [ -n "$path" ]; then
+        command hermes profile export "$name" -o "$path"
+    else
+        command hermes profile export "$name"
+    fi
+    read -p "Press Enter to continue ..."
+    show_profiles
+}
+
+prof_import() {
+    clear
+    read -p "Path to profile archive (blank = cancel): " path
+    [ -z "$path" ] && { show_profiles; return; }
+    command hermes profile import "$path"
+    read -p "Press Enter to continue ..."
+    detect_status
+    show_profiles
 }
 
 # ---------------------------------------------------------------------------
