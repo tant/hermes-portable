@@ -143,6 +143,35 @@ export HOME="$PORTABLE_ROOT/.cache/unix-home"
 mkdir -p "$HOME"
 
 # ---------------------------------------------------------------------------
+# Active profile (launcher-managed). Routes every hermes call to this profile
+# and scopes status to its directory. Pointer travels with the drive in data/.
+# ---------------------------------------------------------------------------
+# Per-profile alias wrappers (e.g. `dev`, `pm`) are created here by Hermes.
+export PATH="$HOME/.local/bin:$PATH"
+
+ACTIVE_PROFILE_FILE="$HERMES_HOME/.active-profile"
+ACTIVE_PROFILE="default"
+if [ -f "$ACTIVE_PROFILE_FILE" ]; then
+    ACTIVE_PROFILE="$(tr -d ' \t\r\n' < "$ACTIVE_PROFILE_FILE" 2>/dev/null)"
+    [ -z "$ACTIVE_PROFILE" ] && ACTIVE_PROFILE="default"
+fi
+# A named profile whose directory is gone falls back to default.
+if [ "$ACTIVE_PROFILE" != "default" ] && [ ! -d "$HERMES_HOME/profiles/$ACTIVE_PROFILE" ]; then
+    ACTIVE_PROFILE="default"
+fi
+PROFILE_DIR="$(ph_profile_dir "$HERMES_HOME" "$ACTIVE_PROFILE")"
+
+# Route every `hermes ...` call to the active profile (no -p for default, which
+# preserves today's behavior and avoids relying on `-p default` being accepted).
+hermes() {
+    if [ "$ACTIVE_PROFILE" = "default" ]; then
+        command hermes "$@"
+    else
+        command hermes -p "$ACTIVE_PROFILE" "$@"
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # Auto-check & update source to latest main (never blocks; offline-safe).
 # ---------------------------------------------------------------------------
 check_and_update_source() {
