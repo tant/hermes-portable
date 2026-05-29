@@ -291,15 +291,15 @@ detect_status() {
     PROVIDER_NAME=""
     MODEL_NAME=""
 
-    if [ -f "$HERMES_HOME/.env" ] && grep -q '^[A-Z].*=' "$HERMES_HOME/.env"; then
+    if [ -f "$PROFILE_DIR/.env" ] && grep -q '^[A-Z].*=' "$PROFILE_DIR/.env"; then
         SETUP_STATUS="Configured"
         SETUP_ICON="[OK]"
         SETUP_COLOR="$BRIGHT_GREEN"
     fi
 
-    if [ -f "$HERMES_HOME/config.yaml" ]; then
-        PROVIDER_NAME=$(grep '^  provider:' "$HERMES_HOME/config.yaml" | head -n 1 | awk '{print $2}' || true)
-        MODEL_NAME=$(grep '^  default:' "$HERMES_HOME/config.yaml" | head -n 1 | awk '{print $2}' || true)
+    if [ -f "$PROFILE_DIR/config.yaml" ]; then
+        PROVIDER_NAME=$(grep '^  provider:' "$PROFILE_DIR/config.yaml" | head -n 1 | awk '{print $2}' || true)
+        MODEL_NAME=$(grep '^  default:' "$PROFILE_DIR/config.yaml" | head -n 1 | awk '{print $2}' || true)
     fi
 
     GATEWAY_STATUS="Stopped"
@@ -307,8 +307,8 @@ detect_status() {
     GATEWAY_COLOR="$GRAY"
     GATEWAY_PID=""
 
-    if [ -f "$HERMES_HOME/gateway.pid" ]; then
-        GATEWAY_PID=$(grep -o '"pid":[0-9]*' "$HERMES_HOME/gateway.pid" | grep -o '[0-9]*' || true)
+    if [ -f "$PROFILE_DIR/gateway.pid" ]; then
+        GATEWAY_PID=$(grep -o '"pid":[0-9]*' "$PROFILE_DIR/gateway.pid" | grep -o '[0-9]*' || true)
     fi
 
     if [ -n "$GATEWAY_PID" ]; then
@@ -341,6 +341,7 @@ show_menu() {
     echo -e "${BRIGHT_CYAN}----------------------------------------------------------------${RESET}"
     echo ""
     echo -e " ${DIM}Setup${RESET}    ${SETUP_COLOR}${SETUP_ICON}${RESET} ${WHITE}${SETUP_STATUS}${RESET}"
+    echo -e " ${DIM}Profile${RESET}  ${BRIGHT_CYAN}${ACTIVE_PROFILE}${RESET}"
     [ -n "$PROVIDER_NAME" ] && echo -e " ${DIM}Provider${RESET} ${CYAN}${PROVIDER_NAME}${RESET}"
     [ -n "$MODEL_NAME" ] && echo -e " ${DIM}Model${RESET}    ${WHITE}${MODEL_NAME}${RESET}"
     echo -e " ${DIM}Gateway${RESET}  ${GATEWAY_COLOR}${GATEWAY_ICON}${RESET} ${WHITE}${GATEWAY_STATUS}${RESET}"
