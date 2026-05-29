@@ -68,3 +68,19 @@ ph_fetch_remote_sha() {
     fi
     return 1
 }
+
+# Resolve the data directory for a profile. "default"/empty -> home; a named
+# profile -> home/profiles/<name>, but only if that dir exists (otherwise fall
+# back to home, so a stale/deleted name never strands the launcher).
+ph_profile_dir() {
+    local home="$1" active="$2"
+    if [ -z "$active" ] || [ "$active" = "default" ]; then
+        printf '%s' "$home"
+        return 0
+    fi
+    if [ -d "$home/profiles/$active" ]; then
+        printf '%s' "$home/profiles/$active"
+    else
+        printf '%s' "$home"
+    fi
+}

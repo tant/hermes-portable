@@ -65,6 +65,17 @@ test_fetch_sha_garbage() (
 )
 run "fetch_remote_sha rejects a non-SHA body" test_fetch_sha_garbage
 
+test_profile_dir() {
+    local tmp; tmp="$(mktemp -d)"
+    mkdir -p "$tmp/profiles/dev"
+    [ "$(ph_profile_dir "$tmp" default)" = "$tmp" ] || { rm -rf "$tmp"; return 1; }
+    [ "$(ph_profile_dir "$tmp" "")" = "$tmp" ]      || { rm -rf "$tmp"; return 1; }
+    [ "$(ph_profile_dir "$tmp" dev)" = "$tmp/profiles/dev" ] || { rm -rf "$tmp"; return 1; }
+    [ "$(ph_profile_dir "$tmp" ghost)" = "$tmp" ]   || { rm -rf "$tmp"; return 1; }
+    rm -rf "$tmp"
+}
+run "profile_dir resolves default/named/missing correctly" test_profile_dir
+
 # ---- tests are appended by later tasks ----
 
 echo ""
